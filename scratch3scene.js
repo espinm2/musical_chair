@@ -1,80 +1,176 @@
-// set the scene size
-console.log("starting");
-var WIDTH = 400,
-  HEIGHT = 300;
+/*
+  Three.js "tutorials by example"
+  Author: Lee Stemkoski
+  Date: July 2013 (three.js v59dev)
+ */
 
-// set some camera attributes
-var VIEW_ANGLE = 45,
-  ASPECT = WIDTH / HEIGHT,
-  NEAR = 0.1,
-  FAR = 10000;
+// MAIN
 
-// get the DOM element to attach to
-// - assume we've got jQuery to hand
-var $container = $('#container');
+// standard global variables
+var container, scene, camera, renderer, controls, stats;
+var keyboard = new THREEx.KeyboardState();
+var clock = new THREE.Clock();
 
-// create a WebGL renderer, camera
-// and a scene
-var renderer = new THREE.WebGLRenderer();
-var camera =
-  new THREE.PerspectiveCamera(
-    VIEW_ANGLE,
-    ASPECT,
-    NEAR,
-    FAR);
+// custom global variables
+var mesh;
 
-var scene = new THREE.Scene();
+init();
+animate();
 
-// add the camera to the scene
-scene.add(camera);
+// FUNCTIONS    
+function init() 
+{
 
-// the camera starts at 0,0,0
-// so pull it back
-camera.position.z = 300;
+  // SCENE
+  scene = new THREE.Scene();
 
-// start the renderer
-renderer.setSize(WIDTH, HEIGHT);
+  // CAMERA
+  var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
+  var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 20000;
+  camera = new THREE.PerspectiveCamera( VIEW_ANGLE, ASPECT, NEAR, FAR);
+  scene.add(camera);
+  camera.position.set(0,150,400);
+  camera.lookAt(scene.position);  
 
-// attach the render-supplied DOM element
-$container.append(renderer.domElement);
+  // RENDERER
+  if ( Detector.webgl )
+    renderer = new THREE.WebGLRenderer( {antialias:true} );
+  else
+    renderer = new THREE.CanvasRenderer(); 
+  renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+  container = document.getElementById( 'ThreeJS' );
+  container.appendChild( renderer.domElement );
 
-// set up the sphere vars
-var radius = 50,
-    segments = 16,
-    rings = 16;
+  // EVENTS
+  THREEx.WindowResize(renderer, camera);
+  THREEx.FullScreen.bindKey({ charCode : 'm'.charCodeAt(0) });
 
-// create the sphere's material
-var sphereMaterial =
-  new THREE.MeshLambertMaterial(
-    {
-      color: 0xCC0000
-    });
+  // CONTROLS
+  controls = new THREE.OrbitControls( camera, renderer.domElement );
 
-// create a new mesh with
-// sphere geometry - we will cover
-// the sphereMaterial next!
-var sphere = new THREE.Mesh(
+  // STATS
+  stats = new Stats();
+  stats.domElement.style.position = 'absolute';
+  stats.domElement.style.bottom = '0px';
+  stats.domElement.style.zIndex = 100;
+  container.appendChild( stats.domElement );
 
-  new THREE.SphereGeometry(
-    radius,
-    segments,
-    rings),
-  sphereMaterial);
+  // LIGHT
+  var light = new THREE.PointLight(0xffffff);
+  light.position.set(100,250,100);
+  scene.add(light);
 
-// add the sphere to the scene
-scene.add(sphere);
+  /*
+  // FLOOR
+  var floorTexture = new THREE.ImageUtils.loadTexture( 'images/checkerboard.jpg' );
+  floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping; 
+  floorTexture.repeat.set( 10, 10 );
+  var floorMaterial = new THREE.MeshBasicMaterial( { map: floorTexture, side: THREE.DoubleSide } );
+  var floorGeometry = new THREE.PlaneGeometry(1000, 1000, 10, 10);
+  var floor = new THREE.Mesh(floorGeometry, floorMaterial);
+  floor.position.y = -0.5;
+  floor.rotation.x = Math.PI / 2;
+  scene.add(floor);
+  */
 
-// create a point light
-var pointLight =
-  new THREE.PointLight(0xFFFFFF);
+  // SKYBOX
+  var skyBoxGeometry = new THREE.CubeGeometry( 10000, 10000, 10000 );
+  var skyBoxMaterial = new THREE.MeshBasicMaterial( { color: 0x9999ff, side: THREE.BackSide } );
+  var skyBox = new THREE.Mesh( skyBoxGeometry, skyBoxMaterial );
+  scene.add(skyBox);
+  
+  ////////////
+  // CUSTOM //
+  ////////////
+  
+  // Sphere Mesh
+  var geometry = new THREE.SphereGeometry( 30, 32, 16 );
+  var material = new THREE.MeshLambertMaterial( { color: 0x000088 } );
+  mesh = new THREE.Mesh( geometry, material );
+  mesh.position.set(40,40,40);
+  scene.add(mesh);
+  
+  // texture
+  var manager = new THREE.LoadingManager();
+  manager.onProgress = function ( item, loaded, total ) {
+    console.log( item, loaded, total );
+  };
 
-// set its position
-pointLight.position.x = 10;
-pointLight.position.y = 50;
-pointLight.position.z = 130;
+  var texture = new THREE.Texture();
+  var loader = new THREE.ImageLoader( manager );
+  loader.load( '../textures/UV_Grid_Sm.jpg', function ( image ) {
+    texture.image = image;
+    texture.needsUpdate = true;
 
-// add to the scene
-scene.add(pointLight);
-// draw!
-renderer.render(scene, camera);
-console.log("end");
+  } );
+
+  var loader = new THREE.OBJLoader( manager );
+  loader.load( '../output/tween/tbl017.obj', function ( object ) {
+    object.traverse( function ( child ) {
+      if ( child instanceof THREE.Mesh ) {
+        child.material.map = texture;
+      }
+    } );
+    object.position.y = 0;
+    object.scale.x = .01;
+    object.scale.y = .01;
+    object.scale.z = .01;
+
+    scene.add( object );
+
+  });
+
+  var axes = new THREE.AxisHelper(50);
+  axes.position = mesh.position;
+  scene.add(axes);
+  
+  var gridXZ = new THREE.GridHelper(100, 10);
+  gridXZ.setColors( new THREE.Color(0x006600), new THREE.Color(0x006600) );
+  gridXZ.position.set( 100,0,100 );
+  scene.add(gridXZ);
+  
+  var gridXY = new THREE.GridHelper(100, 10);
+  gridXY.position.set( 100,100,0 );
+  gridXY.rotation.x = Math.PI/2;
+  gridXY.setColors( new THREE.Color(0x000066), new THREE.Color(0x000066) );
+  scene.add(gridXY);
+
+  var gridYZ = new THREE.GridHelper(100, 10);
+  gridYZ.position.set( 0,100,100 );
+  gridYZ.rotation.z = Math.PI/2;
+  gridYZ.setColors( new THREE.Color(0x660000), new THREE.Color(0x660000) );
+  scene.add(gridYZ);
+  
+  // direction (normalized), origin, length, color(hex)
+  var origin = new THREE.Vector3(50,100,50);
+  var terminus  = new THREE.Vector3(75,75,75);
+  var direction = new THREE.Vector3().subVectors(terminus, origin).normalize();
+  var arrow = new THREE.ArrowHelper(direction, origin, 50, 0x884400);
+  scene.add(arrow);
+  
+  
+}
+
+function animate() 
+{
+  requestAnimationFrame( animate );
+  render();   
+  update();
+}
+
+function update()
+{
+  if ( keyboard.pressed("z") ) 
+  { // do something   
+    var t = clock.getElapsedTime();
+    console.log(t);
+  }
+  
+  controls.update();
+  stats.update();
+}
+
+function render() 
+{
+  renderer.render( scene, camera );
+}

@@ -97,11 +97,16 @@ main();
 //======================================================
 function main(){
 
-  // Set up mesh
+
+  // Set up mesh with walls and table
   init();
+
+  // Set up mesh with desk objects
+  
 
   // Allow animations
   animate();
+
 
 }
 
@@ -187,7 +192,10 @@ function getObjData(){
                         new THREE.Vector2(vt[temp_vertex_2[0]-1][1],vt[temp_vertex_2[0]-1][0]),
                         new THREE.Vector2(vt[temp_vertex_3[0]-1][1],vt[temp_vertex_3[0]-1][0])]);
 
+    }else if(objFileContents.vectors[o][0] == "#"){
+      //Don't do anything
     }
+
     /*
     //getting texture names from the obj filek
     else if (objFileContents.vectors[o][0] == "usemtl"){
@@ -241,6 +249,50 @@ function getObjData(){
 }
 
 
+function getObjData_table(mesh,scene){
+  var radius = 20,
+      segments = 16,
+      rings = 16;
+
+
+
+  // Task add to the mesh[] array with a new mesh object
+  // how do i setup mesh object?
+  // create the sphere's material
+  var sphereMaterial =
+    new THREE.MeshLambertMaterial(
+      {
+        color: 0xCC0000
+      });
+
+  // create a new mesh with
+  // sphere geometry - we will cover
+  // the sphereMaterial next!
+  var sphere = new THREE.Mesh(
+
+    new THREE.SphereGeometry(
+      radius,
+      segments,
+      rings),
+    sphereMaterial);
+
+
+  sphere.geometry.dynamic = true;
+  sphere.geometry.verticesNeedUpdate = true;
+  sphere.geometry.normalsNeedUpdate = true;
+  sphere.overdraw = true;
+
+  // cube
+  var cube = new THREE.Mesh(new THREE.CubeGeometry(10, 10, 10), new THREE.MeshLambertMaterial({
+    color: 'blue' 
+  }));
+  cube.overdraw = true;
+
+  mesh.push(cube);
+  scene.add(cube);
+}
+
+
 function init() {
 
   container = document.createElement( 'div' );
@@ -269,25 +321,33 @@ function init() {
   camera.rotation.y = 0;
 
   scene = new THREE.Scene();
-  getObjData();
-  console.log("Num geometries: "  + geometries.length + "  Num materials: " + image_materials.length);
 
-  for(var g = 0; g < geometries.length; g++){
-    //meshes.push(new THREE.Mesh( geometries[g], image_materials[g] ));
-    for(var i = 0; i < geometries[g].faces.length; i++){
-      var hex = Math.random() * 0xffffff;
-      geometries[g].faces[ i ].color.setHex( hex );
-    }
-    material.push(new THREE.MeshBasicMaterial( { vertexColors: THREE.FaceColors, overdraw: 0.5 } ));
-    mesh.push(new THREE.Mesh( geometries[g], image_materials[g] ));
-    material[g].side = THREE.DoubleSide;
-    mesh[g].doubleSided = true;
-    mesh[g].position.y = 0;
-    mesh[g].position.z = 0;
-    mesh[g].rotation.y = 0;
-    scene.add(mesh[g]);
+  //getObjData();
 
-  }
+
+  //console.log("Num geometries: "  + geometries.length + "  Num materials: " + image_materials.length);
+
+  //// Get every mesh and put in into the scene with meshes
+  //for(var g = 0; g < geometries.length; g++){
+  //  //meshes.push(new THREE.Mesh( geometries[g], image_materials[g] ));
+  //  for(var i = 0; i < geometries[g].faces.length; i++){
+  //    var hex = Math.random() * 0xffffff;
+  //    geometries[g].faces[ i ].color.setHex( hex );
+  //  }
+  //  material.push(new THREE.MeshBasicMaterial( { vertexColors: THREE.FaceColors, overdraw: 0.5 } ));
+  //  mesh.push(new THREE.Mesh( geometries[g], image_materials[g] ));
+  //  material[g].side = THREE.DoubleSide;
+  //  mesh[g].doubleSided = true;
+  //  mesh[g].position.y = 0;
+  //  mesh[g].position.z = 0;
+  //  mesh[g].rotation.y = 0;
+  //  scene.add(mesh[g]);
+
+  //}
+
+  // Max Edit pushes a cube
+  getObjData_table(mesh,scene);
+  
 
   renderer = new THREE.WebGLRenderer({ antialias : true });
   renderer.setSize( window.innerWidth, window.innerHeight );
@@ -509,9 +569,6 @@ function onDocumentTouchStart( event ) {
 
     break;
   }
-
-
-
 }
 
 function onDocumentTouchMove( event ) {
