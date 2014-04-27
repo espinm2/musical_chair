@@ -191,7 +191,7 @@ window.onload    = function () {
 	$.post("save.php",{data: printData(ftWallArray,ftNorth)});
     var win=window.open("../cgi-bin/run_remesher_and_lsvo.sh?/server_data/wallfiles/cat.wall+/server_data", '_blank')
     // Running josh's scripty bit!
-    window.setTimeout(function(){location.reload();},6000); 
+    //window.setTimeout(function(){location.reload();},6000); 
     });
 
     /*********************************************************************
