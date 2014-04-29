@@ -7,15 +7,27 @@ var container, scene, camera, renderer, controls, stats;
 var keyboard = new THREEx.KeyboardState();
 
 
+
 // custom global variables
 var array_table_mesh = [];
 var array_walls_mesh = []; 
+
+
+// Note there is a 1-1 ratio between these geo
+// with the meshes, they are just pushed and 
+// cannot be accesses with OBJload
+var array_walls_geometry = [];
+var array_table_geometry = [];
+
 var sphere_mesh;
+var arrow;
 var time_prev;
+
 
 // constant global varibles
 var INT_TABLE_NUM;
 var SCALE_FACTOR = 300; 
+var TABLE_SCALE = .01;
 var GLOBAL_OFFSET = 161;
 
 // start
@@ -38,16 +50,15 @@ function inputs(){
 // This function runs and gathers inputs on how many tables to apply
 // Will be extended to ask for more information regarding furnature
 // to be concidered in a room, desk/tables/lamps ect....
-  INT_TABLE_NUM = prompt("Number of Desk","5");
+  INT_TABLE_NUM = parseInt(prompt("Number of Desk","5"));
 }
 
 function init() 
 {
 
-  // TIME
-  time_prev = 
   // SCENE
   scene = new THREE.Scene();
+
   // CAMERA
   var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
   var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 20000;
@@ -99,9 +110,7 @@ function init()
   scene.add(skyBox);
   
   // Setting up Desk Objects
-  //setup_objs('../output/tween/tbl017.obj', '../textures/UV_Grid_Sm.jpg ',array_table_mesh, INT_TABLE_NUM);
-  setup_objs('../output/tween/tbl017.obj', '../output/tween/TBL01701.jpg',array_table_mesh, INT_TABLE_NUM);
-
+  setup_objs('../output/tween/tbl017.obj', '../output/tween/TBL01701.jpg ',array_table_mesh, array_table_geometry, INT_TABLE_NUM);
 
   // Seeting up Contraption online =======================
   
@@ -113,7 +122,7 @@ function init()
   // setting up the walls and new floor
   var v = [], vt = [], vn = [], image_materials = [];
 
-  setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, image_materials);
+  setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, image_materials, array_walls_geometry);
 
   // Adding them into array_walls_mesh
   for(var g = 0; g < array_walls_mesh.length; g++){
@@ -121,6 +130,7 @@ function init()
     array_walls_mesh[g].position.z += GLOBAL_OFFSET;
 
   }
+
   // Setting up contraptions visualization
   
 
@@ -158,6 +168,9 @@ function init()
   //  animate();
   //});
 
+  // getting middle point of first table
+
+
 
   // SPHERE
   geometry = new THREE.SphereGeometry( 3, 32, 16 );
@@ -192,7 +205,7 @@ function init()
   var origin = new THREE.Vector3(50,100,50);
   var terminus  = new THREE.Vector3(75,75,75);
   var direction = new THREE.Vector3().subVectors(terminus, origin).normalize();
-  var arrow = new THREE.ArrowHelper(direction, origin, 50, 0x884400);
+  arrow = new THREE.ArrowHelper(direction, origin, 50, 0x884400);
   scene.add(arrow);
 }
 
@@ -203,9 +216,9 @@ function animate()
   render();   
   update();
 }
-
 function update()
 {
+
   if ( keyboard.pressed("d") ) 
   { // do something   
     sphere_mesh.position.x += .05;
@@ -223,11 +236,52 @@ function update()
   }
   if ( keyboard.pressed("r") ) 
   { // do something   
+    //console.log(array_table_mesh);
+    //console.log(array_table_geometry);
+
     for(var i = 0; i <array_table_mesh.length; i++){
-      
+      // For each table/desk
       if(array_table_mesh[i]){
+
+        // jitter
         array_table_mesh[i].position.x =Math.floor(Math.random()*200);
         array_table_mesh[i].position.z =Math.floor(Math.random()*200);
+
+        // get bounding Sphere
+        //console.log("-=-=-=-=-");
+        //console.log(array_table_geometry[i].boundingBox);
+        console.log("-=-=-=-=-=");
+        
+
+        var max =  array_table_geometry[i].boundingBox.max;
+        var min = array_table_geometry[i].boundingBox.min;
+
+        
+
+        var center= new THREE.Vector3(max.x + min.x, max.y + min.y, max.z+ min.z);
+        center.multiplyScalar(0.5);
+        center.add(array_table_mesh[i].position);
+        center.setY(center.y + 30);
+
+        // yes
+        console.log(center);
+
+        var projection = new THREE.Vector3(center.x,0,center.z);
+        var direction = new THREE.Vector3().subVectors(projection, center).normalize();
+
+        var ray = new THREE.Raycaster(center,direction);
+
+        /*
+        arrow.position = center;
+        console.log(arrow);
+        arrow.setDirection(direction);
+       */
+
+       var intersect = ray.intersectObjects(array_walls_mesh);
+       intersect[0].face.color.setRGB( 1,1,1 );
+       intersect[0].object.geometry.colorsNeedUpdate = true;
+
+       console.log(intersect);
       }
     }
   }
@@ -242,7 +296,7 @@ function render()
   renderer.render( scene, camera );
 }
 
-function setup_objs(str_obj, str_texture ,array_mesh, int_copies){
+function setup_objs(str_obj, str_texture ,array_mesh,array_geo, int_copies){
 
   var manager = new THREE.LoadingManager();
   manager.onProgress = function ( item, loaded, total ) {
@@ -265,19 +319,31 @@ function setup_objs(str_obj, str_texture ,array_mesh, int_copies){
 
     var loader = new THREE.OBJLoader( manager );
     loader.load( str_obj, function ( object ) {
+      // Map textures
       object.traverse( function ( child ) {
         if ( child instanceof THREE.Mesh ) {
+
+          // update texture
           child.material.map = texture;
+
+          // update bounding box's
+          child.geometry.computeBoundingBox();
+          child.geometry.boundingBox.max.multiplyScalar(TABLE_SCALE);
+          child.geometry.boundingBox.min.multiplyScalar(TABLE_SCALE);
+
+          //push into global var like hussla
+          array_geo.push(child.geometry);
+
         }
-      } );
-      
+      });
+      // Ready the mesh for loading
       // add to array
       array_mesh.push(object);
       
       // roations to table
-      object.scale.x = .01;
-      object.scale.y = .01;
-      object.scale.z = .01;
+      object.scale.x = TABLE_SCALE;
+      object.scale.y = TABLE_SCALE;
+      object.scale.z = TABLE_SCALE;
       object.rotation.x += 1.5*Math.PI;
 
       // offsets
@@ -288,14 +354,16 @@ function setup_objs(str_obj, str_texture ,array_mesh, int_copies){
       scene.add(array_mesh[array_mesh.length -1]);
       animate();
 
-    });
+    });//loader
   } //for
 }// setup_obj
 
 
-function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, image_materials){
+function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, image_materials,array_walls_geometry){
+  //Major note: With loaded OBJ objects you cannot access the innards outside this fucntion. I link the rest right now
+  //with global arrays. bad practice but oh well :(
 
-  var array_geometry = [], array_material = [], all_v = [];
+  var array_material = [], all_v = [];
   var image_textures  = [], image_names = [];
 
   for(o = 1; o < objFileContents.vectors.length; o++){
@@ -353,13 +421,24 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
       temp_vertex_3 = temp_vertex_3.split("/");
 
       //using -1 because the vertices are 1-indexed
-      if(array_geometry.length == 0) console.log("Adding stuff, where there is no geometry");
-      array_geometry[array_geometry.length-1].faces.push( new THREE.Face3(temp_vertex_1[0]-1,temp_vertex_2[0]-1,temp_vertex_3[0]-1 ) );
+      if(array_walls_geometry.length == 0) console.log("Adding stuff, where there is no geometry");
+      array_walls_geometry[array_walls_geometry.length-1].faces.push( new THREE.Face3(temp_vertex_1[0]-1,temp_vertex_2[0]-1,temp_vertex_3[0]-1 ) );
 
       //add texture coordinates flopping x and y coordinates
-      array_geometry[array_geometry.length-1].faceVertexUvs[0].push([new THREE.Vector2(vt[temp_vertex_1[0]-1][1],vt[temp_vertex_1[0]-1][0]),
-                        new THREE.Vector2(vt[temp_vertex_2[0]-1][1],vt[temp_vertex_2[0]-1][0]),
-                        new THREE.Vector2(vt[temp_vertex_3[0]-1][1],vt[temp_vertex_3[0]-1][0])]);
+      array_walls_geometry[array_walls_geometry.length-1].faceVertexUvs[0].
+        push([
+            new THREE.Vector2(
+              vt[temp_vertex_1[0]-1][1],
+              vt[temp_vertex_1[0]-1][0]),
+
+            new THREE.Vector2(
+              vt[temp_vertex_2[0]-1][1],
+              vt[temp_vertex_2[0]-1][0]),
+
+            new THREE.Vector2(
+              vt[temp_vertex_3[0]-1][1],
+              vt[temp_vertex_3[0]-1][0])
+          ]);
     }
 
 
@@ -367,14 +446,15 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
       // Assumed the first thing that happens
 
       //a new texture means a new geometry
-      array_geometry.push(new THREE.Geometry());
+      array_walls_geometry.push(new THREE.Geometry());
 
       //must add vertices to each geometry because faces share them
-      array_geometry[array_geometry.length-1].vertices = all_v;
+      array_walls_geometry[array_walls_geometry.length-1].vertices = all_v;
 
       //Why is this?
       if(objFileContents.vectors[o][1] == "EXTRA_wall_top"){
         var hex = 0x000000; //this is the line that used to generate a random number
+        //image_materials.push(new THREE.MeshBasicMaterial ({color: hex}));
         image_materials.push(new THREE.MeshBasicMaterial ({color: hex}));
       }
 
@@ -391,26 +471,26 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
   }//endfor
 
   // computing important into for rendering
-  for(var loop = 0; loop < array_geometry.length; loop++){
-    array_geometry[loop].computeCentroids();
-    array_geometry[loop].computeFaceNormals();
-    array_geometry[loop].computeVertexNormals();	
+  for(var loop = 0; loop < array_walls_geometry.length; loop++){
+    array_walls_geometry[loop].computeCentroids();
+    array_walls_geometry[loop].computeFaceNormals();
+    array_walls_geometry[loop].computeVertexNormals();	
   }
 
   // Adding them into array_walls_mesh
-  for(var g = 0; g < array_geometry.length; g++){
+  for(var g = 0; g < array_walls_geometry.length; g++){
 
     //random color faces?
-    for(var i = 0; i < array_geometry[g].faces.length; i++){
+    for(var i = 0; i < array_walls_geometry[g].faces.length; i++){
       var hex = Math.random() * 0xffffff;
-      array_geometry[g].faces[ i ].color.setHex( hex );
+      array_walls_geometry[g].faces[ i ].color.setHex( hex );
     }
     
     // Creating Material
     array_material.push(new THREE.MeshBasicMaterial( { vertexColors: THREE.FaceColors, overdraw: 0.5 } ));
 
     // Creating mesh objects in array
-    array_walls_mesh.push(new THREE.Mesh( array_geometry[g], image_materials[g] ));
+    array_walls_mesh.push(new THREE.Mesh( array_walls_geometry[g], image_materials[g] ));
 
     array_material[g].side = THREE.DoubleSide;
     array_walls_mesh[g].doubleSided = true;
