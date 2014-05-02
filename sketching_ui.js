@@ -188,7 +188,8 @@ window.onload    = function () {
     //submit event handler to save file
     submitButton.click(function(){
         //saveTextAsFile();
-	$.post("save.php",{data: printData(ftWallArray,ftNorth)});
+    // How to send code to PHP
+    $.post("save.php",{data: printData(ftWallArray,ftNorth)});
     var win=window.open("../cgi-bin/run_remesher_and_lsvo.sh?/server_data/wallfiles/cat.wall+/server_data", '_blank')
     // Running josh's scripty bit!
     //window.setTimeout(function(){location.reload();},6000); 

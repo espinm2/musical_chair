@@ -1,4 +1,3 @@
-
 // imports
 //var table_gen = require('/table_generator');
 
@@ -6,12 +5,11 @@
 var container, scene, camera, renderer, controls, stats;
 var keyboard = new THREEx.KeyboardState();
 
-
-
 // custom global variables
 var array_table_mesh = [];
 var array_walls_mesh = []; 
-
+var index_floor_mesh = -1;
+var array_floor_mesh = [];
 
 // Note there is a 1-1 ratio between these geo
 // with the meshes, they are just pushed and 
@@ -24,15 +22,20 @@ var arrow;
 var time_prev;
 
 
+
 // constant global varibles
 var INT_TABLE_NUM;
 var SCALE_FACTOR = 300; 
 var TABLE_SCALE = .01;
 var GLOBAL_OFFSET = 161;
+var TEXTURE_WORLD_SCALE_X = 0.625;
+var TEXTURE_WORLD_SCALE_Z = 0.625;
+var TABLE_ROT_OFFSET = 1.5*Math.PI;
+var TEXTURE_SIZE_XY = 512;
+var LOADING_NUM = -1;
 
 // start
 main();
-
 
 
 //===========================================
@@ -99,7 +102,7 @@ function init()
   var floorGeometry = new THREE.PlaneGeometry(1000, 1000, 10, 10);
   var floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.position.y = -0.5;
-  floor.rotation.x = Math.PI / 2;
+  floor.rotation.x = Math.PI / 2;/
   scene.add(floor);
   */
 
@@ -130,6 +133,14 @@ function init()
     array_walls_mesh[g].position.z += GLOBAL_OFFSET;
 
   }
+
+  //Optimization to only go though floor mesh when concidering 
+  if(index_floor_mesh == -1){ 
+    console.log("error, no floor mesh"); 
+  } else { 
+    array_floor_mesh.push(array_walls_mesh[index_floor_mesh]);
+  }
+  
 
   // Setting up contraptions visualization
   
@@ -186,7 +197,7 @@ function init()
   
   var gridXZ = new THREE.GridHelper(GLOBAL_OFFSET, 10);
   gridXZ.setColors( new THREE.Color(0x006600), new THREE.Color(0x006600) );
-  gridXZ.position.set( GLOBAL_OFFSET,0,GLOBAL_OFFSET );
+  gridXZ.position.set( GLOBAL_OFFSET,0.5,GLOBAL_OFFSET );
   scene.add(gridXZ);
   
   var gridXY = new THREE.GridHelper(GLOBAL_OFFSET, 10);
@@ -222,19 +233,64 @@ function update()
   if ( keyboard.pressed("d") ) 
   { // do something   
     sphere_mesh.position.x += .05;
-    console.log(sphere_mesh.position.x, sphere_mesh.position.y, sphere_mesh.position.z);
   }
   if ( keyboard.pressed("w") ) 
   { // do something   
     sphere_mesh.position.y += .05;
-    console.log(sphere_mesh.position.x, sphere_mesh.position.y, sphere_mesh.position.z);
   }
   if ( keyboard.pressed("s") ) 
   { // do something   
     sphere_mesh.position.z += .05;
-    console.log(sphere_mesh.position.x, sphere_mesh.position.y, sphere_mesh.position.z);
+    LOADING_NUM  = (LOADING_NUM + 1)%20;
+
   }
-  if ( keyboard.pressed("r") ) 
+  if(keyboard.pressed("l")){
+    //jump
+    // L will load in a copy from our state file which we will include engeries
+    
+    // Will get the file I need, in which I will read each line
+    objFileContents.fetch("../build/saved_state_" + LOADING_NUM + ".st");
+   // objFileContents.fetch("../build/middle_state.st");
+		objFileContents.parse();
+
+    // How many desk do we have to work with
+    var int_obj = parseInt(objFileContents.vectors[0][1]);
+    var int_update_obj = 0;
+
+
+    // Read in all the input for desk
+    for(o = 1; o < objFileContents.vectors.length; o++){
+
+      //for each desk object
+      if(objFileContents.vectors[o][0] == "desk"){
+
+        //format goes
+        //pos num num
+        //rot num num
+
+        //pos
+        var x_trans = objFileContents.vectors[o+1][1];
+        var z_trans = objFileContents.vectors[o+1][2];
+
+        //rot
+        var rot = objFileContents.vectors[o+2][1];
+        rot = rot* (Math.PI / 180);
+
+        array_table_mesh[int_update_obj].position.z = x_trans * TEXTURE_WORLD_SCALE_X;
+        array_table_mesh[int_update_obj].position.x = (TEXTURE_SIZE_XY - z_trans) * TEXTURE_WORLD_SCALE_Z;
+        array_table_mesh[int_update_obj].rotation.z = rot;
+
+        
+        //incr
+        o = o + 2;
+        int_update_obj+=1;
+
+      }//if
+
+    }//for
+
+
+  }if ( keyboard.pressed("r") ) 
   { // do something   
     //console.log(array_table_mesh);
     //console.log(array_table_geometry);
@@ -250,7 +306,6 @@ function update()
         // get bounding Sphere
         //console.log("-=-=-=-=-");
         //console.log(array_table_geometry[i].boundingBox);
-        console.log("-=-=-=-=-=");
         
 
         var max =  array_table_geometry[i].boundingBox.max;
@@ -264,24 +319,38 @@ function update()
         center.setY(center.y + 30);
 
         // yes
-        console.log(center);
 
         var projection = new THREE.Vector3(center.x,0,center.z);
         var direction = new THREE.Vector3().subVectors(projection, center).normalize();
 
         var ray = new THREE.Raycaster(center,direction);
 
+        //arrow.position = center;
+        //console.log(arrow);
+        //arrow.setDirection(direction);
+
+        //Only has one mesh in it, the floor
+        var intersect = ray.intersectObjects(array_floor_mesh);
+
         /*
-        arrow.position = center;
-        console.log(arrow);
-        arrow.setDirection(direction);
-       */
+        console.log(intersect);
+        // If i hit the floor, totally did
+        if(intersect.length == 1){
 
-       var intersect = ray.intersectObjects(array_walls_mesh);
-       intersect[0].face.color.setRGB( 1,1,1 );
-       intersect[0].object.geometry.colorsNeedUpdate = true;
+          // getting texture vector in uv coordinates
+          var uv_0 = intersect[0].object.geometry.faceVertexUvs[0][intersect[0].faceIndex][0],
+              uv_1 = intersect[0].object.geometry.faceVertexUvs[0][intersect[0].faceIndex][1],
+              uv_2 = intersect[0].object.geometry.faceVertexUvs[0][intersect[0].faceIndex][2],
 
-       console.log(intersect);
+          // function is pass by refrance, so it will alter uv to be absolute coorindates
+          //var convertUV_Texture(uv_0,uv_1,uv_2);
+
+        }
+
+        //sample UV space to abs texture space
+        //console.log(array_var);
+        */
+
       }
     }
   }
@@ -300,7 +369,6 @@ function setup_objs(str_obj, str_texture ,array_mesh,array_geo, int_copies){
 
   var manager = new THREE.LoadingManager();
   manager.onProgress = function ( item, loaded, total ) {
-    console.log( item, loaded, total );
   };
 
   var texture = new THREE.Texture();
@@ -344,10 +412,9 @@ function setup_objs(str_obj, str_texture ,array_mesh,array_geo, int_copies){
       object.scale.x = TABLE_SCALE;
       object.scale.y = TABLE_SCALE;
       object.scale.z = TABLE_SCALE;
-      object.rotation.x += 1.5*Math.PI;
+      object.rotation.x += TABLE_ROT_OFFSET;
 
       // offsets
-      object.position.x = int_x*int_offset;
       int_x++;
 
       // Adding to scene
@@ -372,29 +439,34 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
       if(objFileContents.vectors[o][0] == "v"){
 
       // use v.length to add one to the length and add x,y, and z components
+      // v = {................[]}
       v.push(new Array());
 
-      // Adding x,y,z
+      // Adding x,y,z to
+      // v = {................[x,y,z]}
       v[v.length-1].push(objFileContents.vectors[o][1]);
       v[v.length-1].push(objFileContents.vectors[o][2]);
       v[v.length-1].push(objFileContents.vectors[o][3]);
 
       //how I would like to add vertices to the geometry
-      //TODO what is the 50 for?
+      // all_v = {.....vec3f}
       all_v.push( new THREE.Vector3( 
             SCALE_FACTOR*v[v.length-1][0], 
             SCALE_FACTOR*v[v.length-1][1], 
             SCALE_FACTOR*v[v.length-1][2])); 
-
-    }
-
+      }
+      
     //get the texture coordinates for each vertex
     else if(objFileContents.vectors[o][0] == "vt"){
+
+      // create new temp list  for texture coordinates
+      // v = {................[]}
       vt.push(new Array());
       //						vt[vt.length-1].push(objFileContents.vectors[o][1]);
       //						vt[vt.length-1].push(objFileContents.vectors[o][2]);
 
       //multiply texture coordinates by .999 for threejs cutoff
+      // v = {................[x,y]}
       vt[vt.length-1].push(objFileContents.vectors[o][1]*0.999);
       vt[vt.length-1].push(objFileContents.vectors[o][2]*0.999);
     }
@@ -407,7 +479,7 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
       vn[vn.length-1].push(objFileContents.vectors[o][3]);
     }
     
-    //adding a new face
+    //adding a new face (imporant moment)
     else if(objFileContents.vectors[o][0] == "f"){
 
       //format is #/#/#.  Pull apart to only grab # in temp_vertex_*[0]
@@ -420,24 +492,34 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
       temp_vertex_2 = temp_vertex_2.split("/");
       temp_vertex_3 = temp_vertex_3.split("/");
 
-      //using -1 because the vertices are 1-indexed
       if(array_walls_geometry.length == 0) console.log("Adding stuff, where there is no geometry");
-      array_walls_geometry[array_walls_geometry.length-1].faces.push( new THREE.Face3(temp_vertex_1[0]-1,temp_vertex_2[0]-1,temp_vertex_3[0]-1 ) );
 
-      //add texture coordinates flopping x and y coordinates
+      // Adding a face element into the 
+      // using -1 because the vertices are 1-indexed
+      // is a collection of index's for verticies
+      array_walls_geometry[array_walls_geometry.length-1].faces.push( 
+          new THREE.Face3(
+            temp_vertex_1[0]-1,
+            temp_vertex_2[0]-1,
+            temp_vertex_3[0]-1 )
+          );
+
+      // add texture coordinates flopping x and y coordinates
+      // this corresponds to three texture coordintes vt_1 vt_2 vt_3 for a 
+      // single triangle in texture image.
       array_walls_geometry[array_walls_geometry.length-1].faceVertexUvs[0].
         push([
             new THREE.Vector2(
-              vt[temp_vertex_1[0]-1][1],
-              vt[temp_vertex_1[0]-1][0]),
+              vt[temp_vertex_1[0]-1] [1],
+              vt[temp_vertex_1[0]-1] [0]),
 
             new THREE.Vector2(
-              vt[temp_vertex_2[0]-1][1],
-              vt[temp_vertex_2[0]-1][0]),
+              vt[temp_vertex_2[0]-1] [1],
+              vt[temp_vertex_2[0]-1] [0]),
 
             new THREE.Vector2(
-              vt[temp_vertex_3[0]-1][1],
-              vt[temp_vertex_3[0]-1][0])
+              vt[temp_vertex_3[0]-1] [1],
+              vt[temp_vertex_3[0]-1] [0])
           ]);
     }
 
@@ -448,6 +530,9 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
       //a new texture means a new geometry
       array_walls_geometry.push(new THREE.Geometry());
 
+      //Makes checking floor triangles faster, only have to go through floor mesh
+      if(objFileContents.vectors[o][1] == "floor_0_0"){ index_floor_mesh = array_walls_geometry.length-1}
+
       //must add vertices to each geometry because faces share them
       array_walls_geometry[array_walls_geometry.length-1].vertices = all_v;
 
@@ -456,13 +541,11 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
         var hex = 0x000000; //this is the line that used to generate a random number
         //image_materials.push(new THREE.MeshBasicMaterial ({color: hex}));
         image_materials.push(new THREE.MeshBasicMaterial ({color: hex}));
-      }
-
-      else{
+      }else{
         //get file from other folder
         //image_names.push("../textures/exact_geometry_photos/surface_camera_" + objFileContents.vectors[o][1] + "_texture.png");
         image_names.push("../output/slow/surface_camera_" + objFileContents.vectors[o][1] + "_texture.png");
-        //last image added jump
+        //last image added 
         image_textures.push(THREE.ImageUtils.loadTexture( image_names[image_names.length - 1] ));
         //create a material out of the loaded image
         image_materials.push(new THREE.MeshBasicMaterial( {map: image_textures[image_textures.length-1]} ));
@@ -501,3 +584,61 @@ function setup_objs_contraption(array_walls_mesh, objFileContents, v ,vt, vn, im
     animate();
   }
 }
+
+
+function convertUV_Texture(a,b,c){
+  // Given a 3 points in uv texture space I conver them into absolute images space
+  // assumption: that the image texture is in fact just 512x512 pixels always
+  // modifies the things passed in, pass by refrence
+  var N = 512;
+
+  //a
+  a.x = 0.5 * (-1 + ( 2 * N * a.x));
+  a.y = 0.5 * (-1 + ( 2 * N * a.y));
+  
+  //b
+  b.x = 0.5 * (-1 + ( 2 * N * b.x));
+  b.y = 0.5 * (-1 + ( 2 * N * b.y));
+
+  //c
+  c.x = 0.5 * (-1 + ( 2 * N * c.x));
+  c.y = 0.5 * (-1 + ( 2 * N * c.y));
+}//convertUV
+
+
+
+function find_boundingBox(obj){
+
+
+}
+
+function find_center(obj){
+
+
+}
+
+function find_orientation(obj){
+
+
+}
+
+
+function find_access(obj){
+
+
+}
+
+
+function find_viewing(obj){
+
+
+
+}
+
+
+function find_lightin(obj){
+
+
+
+}
+
